@@ -11,6 +11,10 @@ strip_strain_prefixes:
   - SARS-CoV-2/
 
 sanitize_metadata:
+  metadata_id_columns:
+    - Virus name
+    - strain
+    - name
   rename_fields:
     - "Virus name=strain"
     - "Type=type"

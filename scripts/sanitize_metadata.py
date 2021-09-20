@@ -15,13 +15,6 @@ LOCATION_FIELDS = (
     "location",
 )
 
-# Define possible strain name fields.
-STRAIN_FIELDS = (
-    "strain",
-    "name",
-    "Virus name",
-)
-
 ACCESSION_FIELDS = (
     "gisaid_epi_isl",
     "genbank_accession",
@@ -157,6 +150,7 @@ if __name__ == '__main__':
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--metadata", required=True, help="metadata to be sanitized")
+    parser.add_argument("--metadata-id-columns", default=["Virus name", "strain", "name"], nargs="+", help="names of valid metadata columns containing identifier information like 'strain' or 'name'")
     parser.add_argument("--parse-location-field", help="split the given GISAID location field on '/' and create new columns for region, country, etc. based on available data. Replaces missing geographic data with '?' values.")
     parser.add_argument("--rename-fields", nargs="+", help="rename specific fields from the string on the left of the equal sign to the string on the right (e.g., 'Virus name=strain')")
     parser.add_argument("--strip-prefixes", nargs="+", help="prefixes to strip from strain names in the metadata")
@@ -164,6 +158,9 @@ if __name__ == '__main__':
     parser.add_argument("--output", required=True, help="sanitized metadata")
 
     args = parser.parse_args()
+
+    # Get user-defined metadata id columns to look for.
+    metadata_id_columns = args.metadata_id_columns
 
     # If the input is a tarball, try to find a metadata file inside the archive.
     metadata_file = args.metadata
@@ -234,14 +231,14 @@ if __name__ == '__main__':
 
     # Determine field for strain name.
     strain_field = None
-    for field in STRAIN_FIELDS:
+    for field in metadata_id_columns:
         if field in metadata.columns:
             strain_field = field
             break
 
     if strain_field is None:
         print(
-            f"ERROR: None of the available columns match possible strain name fields ({', '.join(STRAIN_FIELDS)}).",
+            f"ERROR: None of the available columns match possible strain name fields ({', '.join(metadata_id_columns)}).",
             f"Available columns are: {metadata.columns.values}",
             file=sys.stderr
         )
