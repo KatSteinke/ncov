@@ -16,6 +16,39 @@ LOCATION_FIELDS = (
 )
 
 
+def parse_new_column_names(renaming_rules):
+    """Parse the mapping of current to new column names from the given list of renaming rules.
+
+    Parameters
+    ----------
+    renaming_rules : list[str]
+        A list of strings mapping an old column name to a new one delimited by an equal symbol (e.g., "old_column=new_column").
+
+    Returns
+    -------
+    dict :
+        A mapping of new column names for each old column name.
+
+    >>> parse_new_column_names(["old=new", "new=old"])
+    {'old': 'new', 'new': 'old'}
+    >>> parse_new_column_names(["old->new"])
+    {}
+
+    """
+    new_column_names = {}
+    for rule in renaming_rules:
+        if "=" in rule:
+            old_column, new_column = rule.split("=")
+            new_column_names[old_column] = new_column
+        else:
+            print(
+                f"WARNING: missing mapping of old to new column in form of 'Virus name=strain' for rule: '{rule}'.",
+                file=sys.stderr
+            )
+
+    return new_column_names
+
+
 def parse_location_string(location_string, location_fields):
     """Parse location string from GISAID into the given separate geographic scales
     and return a dictionary of parse values by scale.
@@ -214,18 +247,8 @@ if __name__ == '__main__':
             axis=1
         ).drop(columns=[args.parse_location_field])
 
-    new_column_names = {}
-    if args.rename_fields:
-        # Rename specific columns using rules like "Virus name=strain".
-        for rule in args.rename_fields:
-            if "=" in rule:
-                old_column, new_column = rule.split("=")
-                new_column_names[old_column] = new_column
-            else:
-                print(
-                    f"WARNING: missing mapping of old to new column in form of 'Virus name=strain' for rule: '{rule}'.",
-                    file=sys.stderr
-                )
+    # Parse mapping of old column names to new.
+    new_column_names = parse_new_column_names(args.rename_fields)
 
     # Rename columns as needed.
     if len(new_column_names) > 0:
