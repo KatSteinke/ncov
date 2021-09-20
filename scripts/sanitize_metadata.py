@@ -15,11 +15,6 @@ LOCATION_FIELDS = (
     "location",
 )
 
-ACCESSION_FIELDS = (
-    "gisaid_epi_isl",
-    "genbank_accession",
-)
-
 
 def parse_location_string(location_string, location_fields):
     """Parse location string from GISAID into the given separate geographic scales
@@ -74,7 +69,7 @@ def parse_location_string(location_string, location_fields):
     return locations
 
 
-def resolve_duplicates(metadata, strain_field, error_on_duplicates=False):
+def resolve_duplicates(metadata, strain_field, database_id_columns, error_on_duplicates=False):
     """Resolve duplicate records for a given strain field and return a deduplicated
     data frame. This approach chooses the record with the most recent database
     accession, if accession fields exist, or the first record for a given strain
@@ -88,6 +83,9 @@ def resolve_duplicates(metadata, strain_field, error_on_duplicates=False):
 
     strain_field : string
         Name of the metadata field corresponding to the strain name and which is used to identify duplicates.
+
+    database_id_columns : list[str]
+        An ordered list of database id columns to use for deduplication of metadata.
 
     error_on_duplicates : boolean
         Whether to throw an error on detection of duplicates or not.
@@ -121,7 +119,7 @@ def resolve_duplicates(metadata, strain_field, error_on_duplicates=False):
     # database accession. First, check for standard accession fields.
     accession_fields = [
         field
-        for field in ACCESSION_FIELDS
+        for field in database_id_columns
         if field in metadata.columns
     ]
 
@@ -151,6 +149,7 @@ if __name__ == '__main__':
     )
     parser.add_argument("--metadata", required=True, help="metadata to be sanitized")
     parser.add_argument("--metadata-id-columns", default=["Virus name", "strain", "name"], nargs="+", help="names of valid metadata columns containing identifier information like 'strain' or 'name'")
+    parser.add_argument("--database-id-columns", default=[], nargs="+", help="names of metadata columns that store external database ids for each record (e.g., GISAID, GenBank, etc.) that can be used to deduplicate metadata records with the same strain names.")
     parser.add_argument("--parse-location-field", help="split the given GISAID location field on '/' and create new columns for region, country, etc. based on available data. Replaces missing geographic data with '?' values.")
     parser.add_argument("--rename-fields", nargs="+", help="rename specific fields from the string on the left of the equal sign to the string on the right (e.g., 'Virus name=strain')")
     parser.add_argument("--strip-prefixes", nargs="+", help="prefixes to strip from strain names in the metadata")
@@ -161,6 +160,9 @@ if __name__ == '__main__':
 
     # Get user-defined metadata id columns to look for.
     metadata_id_columns = args.metadata_id_columns
+
+    # Get user-defined database id columns to use for deduplication.
+    database_id_columns = args.database_id_columns
 
     # If the input is a tarball, try to find a metadata file inside the archive.
     metadata_file = args.metadata
@@ -265,6 +267,7 @@ if __name__ == '__main__':
         metadata = resolve_duplicates(
             metadata,
             strain_field,
+            database_id_columns,
             error_on_duplicates=args.error_on_duplicate_strains
         )
     except ValueError as e:

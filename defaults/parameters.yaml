@@ -15,6 +15,9 @@ sanitize_metadata:
     - Virus name
     - strain
     - name
+  database_id_columns:
+    - gisaid_epi_isl
+    - genbank_accession
   rename_fields:
     - "Virus name=strain"
     - "Type=type"
