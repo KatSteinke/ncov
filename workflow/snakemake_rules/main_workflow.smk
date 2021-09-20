@@ -19,8 +19,8 @@ rule sanitize_metadata:
         """
         python3 scripts/sanitize_metadata.py \
             --metadata {input.metadata} \
-            --metadata-id-columns {params.metadata_id_columns} \
-            --database-id-columns {params.database_id_columns} \
+            --metadata-id-columns {params.metadata_id_columns:q} \
+            --database-id-columns {params.database_id_columns:q} \
             {params.parse_location_field} \
             --rename-fields {params.rename_fields:q} \
             --strip-prefixes {params.strain_prefixes:q} \
