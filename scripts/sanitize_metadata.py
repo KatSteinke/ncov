@@ -102,6 +102,35 @@ def parse_location_string(location_string, location_fields):
     return locations
 
 
+def strip_prefixes(strain_name, prefixes):
+    """Strip the given prefixes from the given strain name.
+
+    Parameters
+    ----------
+    strain_name : str
+        Name of a strain to be sanitized
+    prefixes : list[str]
+        A list of prefixes to be stripped from the strain name.
+
+    Returns
+    -------
+    str :
+        Strain name without any of the given prefixes.
+
+
+    >>> strip_prefixes("hCoV-19/RandomStrain/1/2020", ["hCoV-19/", "SARS-CoV-2/"])
+    'RandomStrain/1/2020'
+    >>> strip_prefixes("SARS-CoV-2/RandomStrain/2/2020", ["hCoV-19/", "SARS-CoV-2/"])
+    'RandomStrain/2/2020'
+    >>> strip_prefixes("hCoV-19/RandomStrain/1/2020", ["SARS-CoV-2/"])
+    'hCoV-19/RandomStrain/1/2020'
+
+    """
+    joined_prefixes = "|".join(prefixes)
+    pattern = f"^({joined_prefixes})"
+    return re.sub(pattern, "", strain_name)
+
+
 def resolve_duplicates(metadata, strain_field, database_id_columns, error_on_duplicates=False):
     """Resolve duplicate records for a given strain field and return a deduplicated
     data frame. This approach chooses the record with the most recent database
@@ -270,15 +299,8 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if args.strip_prefixes:
-        prefixes = "|".join(args.strip_prefixes)
-        pattern = f"^({prefixes})"
-
         metadata[strain_field] = metadata[strain_field].apply(
-            lambda strain: re.sub(
-                pattern,
-                "",
-                strain
-            )
+            lambda strain: strip_prefixes(strain, args.strip_prefixes)
         )
 
     # Replace whitespaces from strain names with underscores to match GISAID's
