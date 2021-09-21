@@ -38,10 +38,14 @@ shell.prefix("export AUGUR_RECURSION_LIMIT=10000; ")
 # [5] https://github.com/snakemake/snakemake/blob/a7ac40c96d6e2af47102563d0478a2220e2a2ab7/snakemake/utils.py#L455-L476
 user_subsampling = copy.deepcopy(config.get("subsampling", {}))
 
+SNAKEMAKE_DIR = workflow.basedir # TODO: make everything pathlib.Paths at some point?
 configfile: "defaults/parameters.yaml"
 
+# run config in
+workdir: config["workdir"] if "workdir" in config else os.getcwd()
+
 # Check config file for errors
-validate(config, schema="workflow/schemas/config.schema.yaml")
+validate(config, schema=SNAKEMAKE_DIR + "/workflow/schemas/config.schema.yaml")
 # Convert inputs (YAML array) into an OrderedDict with keys of "name" for use by the pipeline. String values are ignored.
 if isinstance(config.get("inputs"), list):
     config["inputs"] = OrderedDict((v["name"], v) for v in config["inputs"])
@@ -105,9 +109,9 @@ else:
     BUILD_NAMES = list(config["builds"].keys())
 
 # Construct the correct absolute path to the conda environment based on the
-# top-level Snakefile's directory and a path defined in the Snakemake config
-# that is relative to that top-level directory.
-SNAKEMAKE_DIR = os.path.dirname(workflow.snakefile)
+# top-level Snakefile's directory (now defined above) and a path defined in
+# the Snakemake config that is relative to that top-level directory.
+#SNAKEMAKE_DIR = os.path.dirname(workflow.snakefile)
 CONDA_ENV_PATH = os.path.join(SNAKEMAKE_DIR, config["conda_environment"])
 config["conda_environment"] = CONDA_ENV_PATH
 
@@ -141,12 +145,12 @@ rule dump_config:
         yaml.dump(config, sys.stdout, explicit_start = True, explicit_end = True)
 
 # Include small, shared functions that help build inputs and parameters.
-include: "workflow/snakemake_rules/common.smk"
-include: "workflow/snakemake_rules/remote_files.smk"
+include: SNAKEMAKE_DIR + "/workflow/snakemake_rules/common.smk"
+include: SNAKEMAKE_DIR + "/workflow/snakemake_rules/remote_files.smk"
 
 # Include rules to handle primary build logic from multiple sequence alignment
 # to output of auspice JSONs for a default build.
-include: "workflow/snakemake_rules/main_workflow.smk"
+include: SNAKEMAKE_DIR+ "/workflow/snakemake_rules/main_workflow.smk"
 
 # Include a custom Snakefile that specifies `localrules` required by the user's
 # workflow environment.

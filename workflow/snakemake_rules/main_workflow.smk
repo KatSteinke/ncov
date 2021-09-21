@@ -12,10 +12,10 @@ rule sanitize_metadata:
     params:
         parse_location_field=f"--parse-location-field {config['sanitize_metadata']['parse_location_field']}" if config["sanitize_metadata"].get("parse_location_field") else "",
         rename_fields=config["sanitize_metadata"]["rename_fields"],
-        strain_prefixes=config["strip_strain_prefixes"],
+        strain_prefixes=config["strip_strain_prefixes"]
     shell:
         """
-        python3 scripts/sanitize_metadata.py \
+        python3 {workflow.basedir}/scripts/sanitize_metadata.py \
             --metadata {input.metadata} \
             {params.parse_location_field} \
             --rename-fields {params.rename_fields:q} \
@@ -43,7 +43,7 @@ rule combine_input_metadata:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/combine_metadata.py --metadata {input.metadata} --origins {params.origins} --output {output.metadata} 2>&1 | tee {log}
+        python3 {workflow.basedir}/scripts/combine_metadata.py --metadata {input.metadata} --origins {params.origins} --output {output.metadata} 2>&1 | tee {log}
         """
 
 rule align:
@@ -54,8 +54,8 @@ rule align:
         """
     input:
         sequences = lambda wildcards: _get_path_for_input("sequences", wildcards.origin),
-        genemap = config["files"]["annotation"],
-        reference = config["files"]["alignment_reference"]
+        genemap=str(Path(workflow.basedir) / config["files"]["annotation"]),
+        reference=str(Path(workflow.basedir) / config["files"]["alignment_reference"])
     output:
         alignment = "results/aligned_{origin}.fasta.xz",
         insertions = "results/insertions_{origin}.tsv",
@@ -78,7 +78,7 @@ rule align:
         mem_mb=3000
     shell:
         """
-        python3 scripts/sanitize_sequences.py \
+        python3 {workflow.basedir}/scripts/sanitize_sequences.py \
             --sequences {input.sequences} \
             --strip-prefixes {params.strain_prefixes:q} \
             --output /dev/stdout 2> {params.sanitize_log} \
@@ -117,7 +117,7 @@ rule diagnostic:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/diagnostic.py \
+        python3 {workflow.basedir}/scripts/diagnostic.py \
             --metadata {input.metadata} \
             --clock-filter {params.clock_filter} \
             --rare-mutations {params.rare_mutations} \
@@ -133,10 +133,10 @@ def _collect_exclusion_files(wildcards):
     # The second file is optional - it may be opted out via config → skip_diagnostics
     # If the input starting point is "masked" then we also ignore the second file, as the alignment is not available
     if config["filter"].get(wildcards["origin"], {}).get("skip_diagnostics", False):
-        return [ config["files"]["exclude"] ]
+        return str(Path(workflow.basedir) / [config["files"]["exclude"]])
     if "masked" in config["inputs"][wildcards["origin"]]:
-        return [ config["files"]["exclude"] ]
-    return [ config["files"]["exclude"], f"results/to-exclude_{wildcards['origin']}.txt" ]
+        return str(Path(workflow.basedir) / [config["files"]["exclude"]])
+    return [str(Path(workflow.basedir) / config["files"]["exclude"]), f"results/to-exclude_{wildcards['origin']}.txt"]
 
 rule mask:
     message:
@@ -161,7 +161,7 @@ rule mask:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/mask-alignment.py \
+        python3 {workflow.basedir}/scripts/mask-alignment.py \
             --alignment {input.alignment} \
             --mask-from-beginning {params.mask_from_beginning} \
             --mask-from-end {params.mask_from_end} \
@@ -182,7 +182,7 @@ rule filter:
         sequences = lambda wildcards: _get_path_for_input("masked", wildcards.origin),
         metadata = "results/sanitized_metadata_{origin}.tsv.xz",
         # TODO - currently the include / exclude files are not input (origin) specific, but this is possible if we want
-        include = config["files"]["include"],
+        include = str(Path(workflow.basedir) / config["files"]["include"]),
         exclude = _collect_exclusion_files,
     output:
         sequences = "results/filtered_{origin}.fasta.xz"
@@ -261,7 +261,7 @@ def get_priorities(wildcards):
         return f"results/{wildcards.build_name}/priorities_{subsampling_settings['priorities']['focus']}.tsv"
     else:
         # TODO: find a way to make the list of input files depend on config
-        return config["files"]["include"]
+        return str(Path(workflow.basedir) / config["files"]["include"])
 
 
 def get_priority_argument(wildcards):
@@ -340,7 +340,7 @@ rule combine_sequences_for_subsampling:
         strain_prefixes=config["strip_strain_prefixes"],
     shell:
         """
-        python3 scripts/sanitize_sequences.py \
+        python3 {workflow.basedir}/scripts/sanitize_sequences.py \
                 --sequences {input} \
                 --strip-prefixes {params.strain_prefixes:q} \
                 {params.error_on_duplicate_strains} \
@@ -389,9 +389,9 @@ rule subsample:
         sequences = _get_unified_alignment,
         metadata = _get_unified_metadata,
         sequence_index = rules.index_sequences.output.sequence_index,
-        include = config["files"]["include"],
+        include = str(Path(workflow.basedir) / config["files"]["include"]),
         priorities = get_priorities,
-        exclude = config["files"]["exclude"]
+        exclude = str(Path(workflow.basedir) / config["files"]["exclude"])
     output:
         sequences = "results/{build_name}/sample-{subsample}.fasta",
         strains="results/{build_name}/sample-{subsample}.txt",
@@ -446,7 +446,7 @@ rule proximity_score:
         """
     input:
         alignment = _get_unified_alignment,
-        reference = config["files"]["alignment_reference"],
+        reference = str(Path(workflow.basedir) / config["files"]["alignment_reference"]),
         focal_alignment = "results/{build_name}/sample-{focus}.fasta"
     output:
         proximities = "results/{build_name}/proximity_{focus}.tsv"
@@ -463,7 +463,7 @@ rule proximity_score:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/get_distance_to_focal_set.py \
+        python3 {workflow.basedir}/scripts/get_distance_to_focal_set.py \
             --reference {input.reference} \
             --alignment {input.alignment} \
             --focal-alignment {input.focal_alignment} \
@@ -483,7 +483,7 @@ rule priority_score:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/priorities.py \
+        python3 {workflow.basedir}/scripts/priorities.py \
             --sequence-index {input.sequence_index} \
             --proximities {input.proximity} \
             --output {output.priorities} 2>&1 | tee {log}
@@ -536,8 +536,8 @@ rule build_align:
         """
     input:
         sequences = rules.combine_samples.output.sequences,
-        genemap = config["files"]["annotation"],
-        reference = config["files"]["alignment_reference"]
+        genemap = str(Path(workflow.basedir) / config["files"]["annotation"]),
+        reference = str(Path(workflow.basedir) / config["files"]["alignment_reference"])
     output:
         alignment = "results/{build_name}/aligned.fasta",
         insertions = "results/{build_name}/insertions.tsv",
@@ -630,7 +630,7 @@ if "run_pangolin" in config and config["run_pangolin"]:
             "benchmarks/make_pangolin_node_data_{build_name}.txt"
         shell:
             """
-            python3 scripts/make_pangolin_node_data.py \
+            python3 {workflow.basedir}/scripts/make_pangolin_node_data.py \
             --pangolineages {input.lineages} \
             --node_data_outfile {output.node_data} 2>&1 | tee {log}\
             """
@@ -656,7 +656,7 @@ rule adjust_metadata_regions:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/adjust_regional_meta.py \
+        python3 {workflow.basedir}/scripts/adjust_regional_meta.py \
             --region {params.region:q} \
             --metadata {input.metadata} \
             --output {output.metadata} 2>&1 | tee {log}
@@ -785,7 +785,7 @@ rule translate:
     input:
         tree = rules.refine.output.tree,
         node_data = rules.ancestral.output.node_data,
-        reference = config["files"]["reference"]
+        reference = str(Path(workflow.basedir) /config["files"]["reference"])
     output:
         node_data = "results/{build_name}/aa_muts.json"
     log:
@@ -827,7 +827,7 @@ rule aa_muts_explicit:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/explicit_translation.py \
+        python3 {workflow.basedir}/scripts/explicit_translation.py \
             --tree {input.tree} \
             --translations {input.translations:q} \
             --genes {params.genes} \
@@ -840,8 +840,8 @@ rule build_mutation_summary:
         alignment = rules.build_align.output.alignment,
         insertions = rules.build_align.output.insertions,
         translations = rules.build_align.output.translations,
-        reference = config["files"]["alignment_reference"],
-        genemap = config["files"]["annotation"]
+        reference = str(Path(workflow.basedir) / config["files"]["alignment_reference"]),
+        genemap = str(Path(workflow.basedir) / config["files"]["annotation"])
     output:
         mutation_summary = "results/{build_name}/mutation_summary.tsv"
     log:
@@ -852,7 +852,7 @@ rule build_mutation_summary:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/mutation_summary.py \
+        python3 {workflow.basedir}/scripts/mutation_summary.py \
             --alignment {input.alignment} \
             --insertions {input.insertions} \
             --directory {params.outdir} \
@@ -866,7 +866,7 @@ rule distances:
     input:
         tree = rules.refine.output.tree,
         alignments = "results/{build_name}/translations/aligned.gene.S_withInternalNodes.fasta",
-        distance_maps = ["defaults/distance_maps/S1.json"]
+        distance_maps = [str(Path(workflow.basedir) /"defaults/distance_maps/S1.json")]
     params:
         genes = 'S',
         comparisons = ['root'],
@@ -922,9 +922,9 @@ rule traits:
 
 def _get_clade_files(wildcards):
     if "subclades" in config["builds"][wildcards.build_name]:
-        return [config["files"]["clades"], config["builds"][wildcards.build_name]["subclades"]]
+        return [str(Path(workflow.basedir) / config["files"]["clades"]), str(Path(workflow.basedir) / config["builds"][wildcards.build_name]["subclades"])]
     else:
-        return config["files"]["clades"]
+        return str(Path(workflow.basedir)/config["files"]["clades"])
 
 rule clade_files:
     input:
@@ -969,8 +969,8 @@ rule emerging_lineages:
         tree = rules.refine.output.tree,
         aa_muts = rules.translate.output.node_data,
         nuc_muts = rules.ancestral.output.node_data,
-        emerging_lineages = config["files"]["emerging_lineages"],
-        clades = config["files"]["clades"]
+        emerging_lineages = str(Path(workflow.basedir) / config["files"]["emerging_lineages"]),
+        clades = str(Path(workflow.basedir) / config["files"]["clades"])
     output:
         clade_data = "results/{build_name}/temp_emerging_lineages.json"
     log:
@@ -1011,8 +1011,8 @@ rule rename_emerging_lineages:
 rule colors:
     message: "Constructing colors file"
     input:
-        ordering = config["files"]["ordering"],
-        color_schemes = config["files"]["color_schemes"],
+        ordering = str(Path(workflow.basedir) / config["files"]["ordering"]),
+        color_schemes = str(Path(workflow.basedir) / config["files"]["color_schemes"]),
         metadata="results/{build_name}/metadata_adjusted.tsv.xz",
     output:
         colors = "results/{build_name}/colors.tsv"
@@ -1028,7 +1028,7 @@ rule colors:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/assign-colors.py \
+        python3 {workflow.basedir}/scripts/assign-colors.py \
             --ordering {input.ordering} \
             --color-schemes {input.color_schemes} \
             --output {output.colors} \
@@ -1051,7 +1051,7 @@ rule recency:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/construct-recency-from-submission-date.py \
+        python3 {workflow.basedir}/scripts/construct-recency-from-submission-date.py \
             --metadata {input.metadata} \
             --output {output} 2>&1 | tee {log}
         """
@@ -1116,7 +1116,7 @@ rule logistic_growth:
         mem_mb=256
     shell:
         """
-        python3 scripts/calculate_delta_frequency.py \
+        python3 {workflow.basedir}/scripts/calculate_delta_frequency.py \
             --tree {input.tree} \
             --frequencies {input.frequencies} \
             --method {params.method} \
@@ -1141,7 +1141,7 @@ rule calculate_epiweeks:
         "logs/calculate_epiweeks_{build_name}.txt",
     shell:
         """
-        python3 scripts/calculate_epiweek.py \
+        python3 {workflow.basedir}/scripts/calculate_epiweek.py \
             --metadata {input.metadata} \
             --output-node-data {output.node_data}
         """
@@ -1198,10 +1198,19 @@ rule export:
         tree = rules.refine.output.tree,
         metadata="results/{build_name}/metadata_adjusted.tsv.xz",
         node_data = _get_node_data_by_wildcards,
-        auspice_config = lambda w: config["builds"][w.build_name]["auspice_config"] if "auspice_config" in config["builds"][w.build_name] else config["files"]["auspice_config"],
-        colors = lambda w: config["builds"][w.build_name]["colors"] if "colors" in config["builds"][w.build_name] else ( config["files"]["colors"] if "colors" in config["files"] else rules.colors.output.colors.format(**w) ),
-        lat_longs = config["files"]["lat_longs"],
-        description = lambda w: config["builds"][w.build_name]["description"] if "description" in config["builds"][w.build_name] else config["files"]["description"]
+        auspice_config = lambda w: str(Path(workflow.basedir) / config["builds"][w.build_name][
+        "auspice_config"]) if "auspice_config" in config["builds"][w.build_name] else str(Path(workflow.basedir) /
+                                                                                              config["files"][
+                                                                                                  "auspice_config"]),
+        colors=lambda w: str(Path(workflow.basedir) / config["builds"][w.build_name]["colors"]) if "colors" in
+                                                                                                   config["builds"][
+                                                                                                       w.build_name] else (
+            str(Path(workflow.basedir) / config["files"]["colors"]) if "colors" in config[
+                "files"] else rules.colors.output.colors.format(**w)),
+        lat_longs=str(Path(workflow.basedir) / config["files"]["lat_longs"]),
+        description=lambda w: str(Path(workflow.basedir) / config["builds"][w.build_name][
+            "description"]) if "description" in config["builds"][w.build_name] else str(Path(workflow.basedir) /
+                                                                                        config["files"]["description"])
     output:
         auspice_json = "results/{build_name}/ncov_with_accessions.json",
         root_sequence_json = "results/{build_name}/ncov_with_accessions_root-sequence.json"
@@ -1242,7 +1251,7 @@ rule add_branch_labels:
     conda: config["conda_environment"]
     shell:
         """
-        python3 ./scripts/add_branch_labels.py \
+        python3 {workflow.basedir}/scripts/add_branch_labels.py \
             --input {input.auspice_json} \
             --emerging-clades {input.emerging_clades} \
             --output {output.auspice_json}
@@ -1263,7 +1272,7 @@ rule include_hcov19_prefix:
         prefix = lambda w: "hCoV-19/" if config.get("include_hcov19_prefix", False) else ""
     shell:
         """
-        python3 ./scripts/include_prefix.py \
+        python3 {workflow.basedir}/scripts/include_prefix.py \
             --input-auspice {input.auspice_json} \
             --input-tip-frequencies {input.tip_frequencies} \
             --prefix {params.prefix} \
@@ -1275,8 +1284,12 @@ rule incorporate_travel_history:
     message: "Adjusting main auspice JSON to take into account travel history"
     input:
         auspice_json = rules.include_hcov19_prefix.output.auspice_json,
-        colors = lambda w: config["builds"][w.build_name]["colors"] if "colors" in config["builds"][w.build_name] else ( config["files"]["colors"] if "colors" in config["files"] else rules.colors.output.colors.format(**w) ),
-        lat_longs = config["files"]["lat_longs"]
+        colors = lambda w: str(Path(workflow.basedir) / config["builds"][w.build_name]["colors"]) if "colors" in
+                                                                                                   config["builds"][
+                                                                                                       w.build_name] else (
+            str(Path(workflow.basedir) / config["files"]["colors"]) if "colors" in config[
+                "files"] else rules.colors.output.colors.format(**w)),
+        lat_longs = str(Path(workflow.basedir) / config["files"]["lat_longs"])
     params:
         sampling = _get_sampling_trait_for_wildcards,
         exposure = _get_exposure_trait_for_wildcards
@@ -1289,7 +1302,7 @@ rule incorporate_travel_history:
     conda: config["conda_environment"]
     shell:
         """
-        python3 ./scripts/modify-tree-according-to-exposure.py \
+        python3 {workflow.basedir}/scripts/modify-tree-according-to-exposure.py \
             --input {input.auspice_json} \
             --colors {input.colors} \
             --lat-longs {input.lat_longs} \
@@ -1315,7 +1328,7 @@ rule finalize:
     conda: config["conda_environment"]
     shell:
         """
-        python3 scripts/fix-colorings.py \
+        python3 {workflow.basedir}/scripts/fix-colorings.py \
             --input {input.auspice_json} \
             --output {output.auspice_json} 2>&1 | tee {log} &&
         cp {input.frequencies} {output.tip_frequency_json} &&
