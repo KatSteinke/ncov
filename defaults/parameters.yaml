@@ -252,7 +252,7 @@ subsampling:
     # Focal samples for division
     division:
       group_by: "year month"
-      seq_per_group: 300
+      seq_per_group: 4500
       exclude: "--exclude-where 'region!={region}' 'country!={country}' 'division!={division}'"
     # Contextual samples from division's country
     country:
