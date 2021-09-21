@@ -186,8 +186,8 @@ if __name__ == '__main__':
         engine="python",
         skipinitialspace=True,
         dtype={
-            "strain": "string",
-            "name": "string",
+             "strain": str,
+            "name": str,
         }
     ).fillna("")
 
