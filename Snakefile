@@ -118,8 +118,9 @@ config["conda_environment"] = CONDA_ENV_PATH
 # Define patterns we expect for wildcards.
 wildcard_constraints:
     # Allow build names to contain alpha characters, underscores, and hyphens
-    # but not special strings used for Nextstrain builds.
-    build_name = r'(?:[_a-zA-Z-](?!(tip-frequencies)))+',
+    # updated with fix from issue 482 https://github.com/nextstrain/ncov/issues/482;
+    # as we're not using official nextstrain builds we don't have an issue with breaking naming
+    build_name=r'(?:[_a-zA-Z0-9-](?!(tip-frequencies)))+',
     date = r"[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]",
     origin = r"[a-zA-Z0-9-_]+"
 
