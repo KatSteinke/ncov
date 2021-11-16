@@ -39,7 +39,7 @@ shell.prefix("export AUGUR_RECURSION_LIMIT=10000; ")
 user_subsampling = copy.deepcopy(config.get("subsampling", {}))
 
 SNAKEMAKE_DIR = workflow.basedir # TODO: make everything pathlib.Paths at some point?
-configfile: "defaults/parameters.yaml"
+configfile: Path(workflow.basedir) / "defaults" / "parameters.yaml"
 
 # run config in
 workdir: config["workdir"] if "workdir" in config else os.getcwd()
